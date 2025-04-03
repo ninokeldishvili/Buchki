@@ -10,8 +10,6 @@ async function DesktopNavbar() {
 
   return (
     <div className="hidden md:flex items-center space-x-4">
-      <ModeToggle />
-
       <Button variant="ghost" className="flex items-center gap-2" asChild>
         <Link href="/">
           <HomeIcon className="w-4 h-4" />
@@ -45,6 +43,7 @@ async function DesktopNavbar() {
           <Button variant="default">Sign In</Button>
         </SignInButton>
       )}
+      <ModeToggle />
     </div>
   );
 }
