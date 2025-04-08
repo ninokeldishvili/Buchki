@@ -2,6 +2,7 @@
 
 import { currentUser, auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 
 export async function syncUser() {
   try {
@@ -14,7 +15,7 @@ export async function syncUser() {
     });
     if (existingUser) return existingUser;
 
-    const dbUser = await prisma.user.create({
+    return await prisma.user.create({
       data: {
         clerkId: userId,
         name: `${user.firstName || ""} ${user.lastName || ""}`,
@@ -24,7 +25,6 @@ export async function syncUser() {
         image: user.imageUrl,
       },
     });
-    return dbUser;
   } catch (e) {
     console.error("Error syncing user:", e);
   }
@@ -85,5 +85,57 @@ export async function getRandomUsers() {
   } catch (err) {
     console.log("Error fetching users", err);
     return [];
+  }
+}
+
+export async function toggleFollow(targetUserId: string) {
+  try {
+    const userId = await getDbUserId();
+    if (!userId) return null;
+
+    if (userId === targetUserId) {
+      throw new Error("You cannot follow yourself");
+    }
+
+    const existingFollow = await prisma.follows.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: userId,
+          followingId: targetUserId,
+        },
+      },
+    });
+
+    if (existingFollow) {
+      await prisma.follows.delete({
+        where: {
+          followerId_followingId: {
+            followerId: userId,
+            followingId: targetUserId,
+          },
+        },
+      });
+    } else {
+      await prisma.$transaction([
+        prisma.follows.create({
+          data: {
+            followerId: userId,
+            followingId: targetUserId,
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            type: "FOLLOW",
+            userId: targetUserId, // user who is being followed
+            creatorId: userId, // user who is following
+          },
+        }),
+      ]);
+    }
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.log("Error fetching userId", error);
+    return { success: false, error: "Error toggling follow" };
   }
 }
